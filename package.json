@@ -1,0 +1,9 @@
+{
+  "dependencies": {
+    "sqlite3": "^5.1.6"
+  },
+  "devDependencies": {
+    "@tailwindcss/typography": "^0.5.9",
+    "daisyui": "^3.1.1"
+  }
+}
