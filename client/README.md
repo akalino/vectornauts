@@ -11,13 +11,14 @@ node -v
 
 Set these environment variables:
 ```console
-DATABASE_URL="file:../data/db/vectorverse.sqlite"
+DATABASE_URL="file:../../data/db/vectorverse.sqlite"
 ```
 
 To install the necessary packages and build the prisma db client, from the **client** directort run:
 ```shell
 npm install
 npx prisma generate
+prisma migrate dev --name init
 npx prisma db push
 ```
 
