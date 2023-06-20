@@ -2,30 +2,37 @@ import NextAuth, { AuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import GithubProvider from "next-auth/providers/github";
 import Credentials from "next-auth/providers/credentials";
-import axios from "axios";
+import prisma from "@/lib/prisma";
+import bcrypt from "bcryptjs";
 
 export const authOptions: AuthOptions = {
   // Configure one or more authentication providers
   providers: [
     Credentials({
+      id: "credentials",
       name: "Credentials",
       credentials: {
         username: { label: "Username", type: "text" },
         password: { label: "Password", type: "password" },
       },
       authorize: async (credentials) => {
-        const user = await axios
-          .post("/api/login", {
-            username: credentials?.username,
-            password: credentials?.password,
-          })
-          .then((res) => res.data);
-
-        if (user) {
-          return { id: String(user.id), email: user.email };
+        if (!credentials) {
+          return null;
         }
 
-        return null;
+        const user = await prisma.user.findUnique({
+          where: { username: credentials.username },
+        });
+
+        if (!user) {
+          return null;
+        }
+
+        if (!(await bcrypt.compare(credentials.password, user.password))) {
+          return null;
+        }
+
+        return { id: String(user.id), email: user.email };
       },
     }),
     GoogleProvider({
@@ -40,13 +47,13 @@ export const authOptions: AuthOptions = {
   pages: {
     signIn: "/auth/signin",
   },
-  // callbacks: {
-  //   async signIn({ user }) {
-  //     let isAllowedToSignIn = true;
-  //     console.log(user);
-  //     return isAllowedToSignIn;
-  //   },
-  // },
+  callbacks: {
+    async signIn({ user }) {
+      let isAllowedToSignIn = true;
+      console.log(user);
+      return isAllowedToSignIn;
+    },
+  },
 };
 
 export default NextAuth(authOptions);
