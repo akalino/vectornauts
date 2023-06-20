@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  .prose a {
+    @apply no-underline;
+  }
+
+  .card {
+    @apply shadow-xl outline outline-gray-200 outline-1;
+  }
+}
