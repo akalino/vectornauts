@@ -208,7 +208,15 @@ def apply_proj(_wvs, _type):
                      init='random',
                      random_state=RS)
     elif _type == 'umap':
-        proj2 = UMAP(n_components=2, n_neighbors=10, n_epochs=5000)
+        proj2 = UMAP(n_components=2,
+                     n_neighbors=16,
+                     n_epochs=8000,
+                     min_dist=0.7,
+                     spread=6.94,
+                     repulsion_strength=12.69,
+                     negative_sample_rate=3,
+                     set_op_mix_ratio=.3,
+                     random_state=17)
     else:
         print('Invalid projection type, try again')
         sys.exit()
