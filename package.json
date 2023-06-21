@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "@pinecone-database/pinecone": "^0.1.6",
     "sqlite3": "^5.1.6"
   },
   "devDependencies": {

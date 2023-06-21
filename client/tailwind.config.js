@@ -9,4 +9,9 @@ module.exports = {
   daisyui: {
     themes: ["emerald"],
   },
+  theme: {
+    container: {
+      padding: '2rem',
+    },
+  },
 };
