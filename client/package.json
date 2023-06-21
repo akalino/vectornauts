@@ -12,6 +12,7 @@
     "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
   },
   "dependencies": {
+    "@pinecone-database/pinecone": "^0.1.6",
     "@prisma/client": "^4.13.0",
     "@types/node": "^18.16.0",
     "@types/react": "^18.0.38",
