@@ -1,2 +1,4 @@
 *.pt
 data/db
+node_modules
+.idea
