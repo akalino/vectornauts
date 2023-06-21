@@ -10,14 +10,14 @@ export default async function Index() {
         environment: process.env.PINECONE_ENV as string,
         apiKey: process.env.PINECONE_API_KEY as string,
     });
-    const indices = await pinecone.listIndexes();
+    const indexes = await pinecone.listIndexes();
     return (
         <>
             <Header/>
             <section className="min-h-screen pt-20 w-screen">
                 <div className="container mx-auto px-4">
                     <div className="grid gap-4 md:grid-cols-4">
-                        {indices.map((vector, i) => (
+                        {indexes.map((vector, i) => (
                             <div className="card w-50 bg-base-100 shadow-xl" key={i}>
                                 <div className="card-body">
                                     <h2 className="card-title">{vector}</h2>
