@@ -210,7 +210,7 @@ def apply_proj(_wvs, _type):
     elif _type == 'umap':
         proj2 = UMAP(n_components=2,
                      n_neighbors=16,
-                     n_epochs=8000,
+                     n_epochs=500,
                      min_dist=0.7,
                      spread=6.94,
                      repulsion_strength=12.69,

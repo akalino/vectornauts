@@ -1,3 +1,4 @@
+import argparse
 import community as community_louvain
 import json
 import matplotlib.cm as cm
@@ -42,13 +43,21 @@ def load_metadata(_md_path):
 def filter_local(_vecs, _md_path):
     _filtered = []
     _rel_lab = []
+    _rel_tracker = {}
     meta = load_metadata(_md_path)
     for v in tqdm(range(_vecs.shape[0])):
         if meta[str(v)]['rel_ids'] != ["35"]:
-            _filtered.append(_vecs[v])
-            _rel_lab.append(meta[str(v)]['rel_ids'][0])
+            if meta[str(v)]['rel_ids'][0] not in list(_rel_tracker.keys()):
+                _rel_tracker[meta[str(v)]['rel_ids'][0]] = 1
+            else:
+                _rel_tracker[meta[str(v)]['rel_ids'][0]] += 1
+            cur_count = _rel_tracker[meta[str(v)]['rel_ids'][0]]
+            if cur_count < 500:
+                _filtered.append(_vecs[v])
+                _rel_lab.append(meta[str(v)]['rel_ids'][0])
     _filtered = torch.stack(_filtered)
-    print(_filtered.shape)
+    print('Vector dimensionalities: {}'.format(_filtered.shape))
+    print('Dataset covers {} predicates'.format(len(list(set(_rel_tracker.keys())))))
     return _filtered, _rel_lab
 
 
@@ -98,25 +107,23 @@ def bng(_embed, _index, _k, _thresh):
     cnt = 0
     for batch in tqdm(batched_vecs):
         cnt += 1
-        if cnt == 10:
-           print(cnt)
-        #    break
-        else:
-            ids = batch[0]
-            vectors = batch[1]
-            vectors = [x.tolist() for x in vectors]
-            try:
-                nns = _index.query(top_k=_k,
-                                   queries=vectors)
-            except PineconeException as e:
-                print('Got error {}, sleeping and re-trying'.format(e))
-                time.sleep(30)
-                nns = _index.query(top_k=_k,
-                                   queries=vectors)
-            for i, ele in enumerate(nns['results']):
-                _nn_tracker[str(ids[i])].update([res['id'] for res in ele['matches']
-                                                 if ((res['score'] > _thresh)
-                                                     and (str(res['id']) != str(ids[i])))])
+        ids = batch[0]
+        vectors = batch[1]
+        vectors = [x.tolist() for x in vectors]
+        try:
+            nns = _index.query(top_k=_k,
+                               queries=vectors)
+            if cnt == 10:
+                print(nns['results'])
+        except PineconeException as e:
+            print('Got error {}, sleeping and re-trying'.format(e))
+            time.sleep(30)
+            nns = _index.query(top_k=_k,
+                               queries=vectors)
+        for i, ele in enumerate(nns['results']):
+            _nn_tracker[str(ids[i])].update([res['id'] for res in ele['matches']
+                                             if ((res['score'] > _thresh)
+                                                 and (str(res['id']) != str(ids[i])))])
 
     return _nn_tracker
 
@@ -181,60 +188,68 @@ def dep_dfs(neighbours):
     return clusters
 
 
-def convert_to_adj(_nn_dict):
-    """
-    Converts Pinecone NN dict to local adjacency matrix.
-
-    :param _nn_dict:
-    :return:
-    """
-    pass
-
-
-def louvain_clustering(_adj_mat):
-    """
-    Runs Louvain clustering.
-
-    :param _adj_mat:
-    :return:
-    """
-    pass
+def build_graph(_nn_dict):
+    _g = nx.Graph()
+    for h_node in _nn_dict:
+        _g.add_node(h_node)
+        edges = list(_nn_dict[h_node])
+        for e in edges:
+            _g.add_node(e)
+            _g.add_edge(h_node, e)
+    return _g
 
 
 if __name__ == "__main__":
-    sent_mod_name = 'gem'
-    md_path = '../../data/nytfb/nytfb_metadata.json'
+    parser = argparse.ArgumentParser()
+    sent_mod_name = 'sentbert'
 
+    md_path = '../../data/nytfb/nytfb_metadata.json'
     PC_ENV = 'asia-northeast1-gcp'
-    PC_API_KEY = ''
     PC_IDX_NAME = 'nytfb-{}-embeddings'.format(sent_mod_name)
     pinecone.init(api_key=PC_API_KEY, environment=PC_ENV)
     index = pinecone.GRPCIndex(PC_IDX_NAME)
+
+    # Check for dim and use top_k = d/2
+    index_dim = index.describe_index_stats()['dimension']
+    NN_PARAM = 50
+    NN_THRESH = 0.65
+    PLOT = False
 
     vecs = load_local_space(sent_mod_name)
     fil_vecs, meta = filter_local(vecs, md_path)
 
     try:
-        with open('neigh_{}.pkl'.format(sent_mod_name), 'rb') as f:
+        with open('neigh_{}_{}_{}.pkl'.format(sent_mod_name, NN_PARAM, NN_THRESH), 'rb') as f:
             nn_dict = pickle.load(f)
             print('Loaded local neighbor index')
     except FileNotFoundError:
         print('No local index found, running Pinecone queries')
-        nn_dict = bng(fil_vecs, index, 20, 0.7)
-        with open('neigh_{}.pkl'.format(sent_mod_name), 'wb') as f:
+        nn_dict = bng(fil_vecs, index, NN_PARAM, NN_THRESH)
+        with open('neigh_{}_{}_{}.pkl'.format(sent_mod_name, NN_PARAM, NN_THRESH), 'wb') as f:
             pickle.dump(dict(nn_dict), f)
 
-    g = nx.DiGraph(nn_dict).to_undirected()
+    #g = nx.DiGraph(nn_dict).to_undirected()
+    g = build_graph(nn_dict)
+    print(nx.is_connected(g))
     print('Graph loaded, running community detection...')
-    partition = community_louvain.best_partition(g)
-    print('...done communities, plotting results.')
-    pos = nx.spring_layout(g)
-    # color the nodes according to their partition
-    cmap = cm.get_cmap('viridis', max(partition.values()) + 1)
-    nx.draw_networkx_nodes(g, pos, partition.keys(), node_size=40,
-                           cmap=cmap, node_color=list(partition.values()))
-    nx.draw_networkx_edges(g, pos, alpha=0.5)
-    plt.show()
-    #gv, labs = filter_local(vecs, md_path)
+    partition = community_louvain.best_partition(g, resolution=1)
+    print('...done communities: discovered {} clusters, plotting results.'.format(
+        len(list(set(partition.values())))))
+    nx.set_node_attributes(g, partition, 'community')
+    print('+++++++ Graph Summary +++++++')
+    print('Nodes: {}'.format(g.number_of_nodes()))
+    print('Edges: {}'.format(g.number_of_edges()))
+    nx.write_graphml(g, '{}_{}_{}_graph.graphml'.format(sent_mod_name, NN_PARAM, NN_THRESH))
+    nx.write_gexf(g, '{}_{}_{}_graph.gexf'.format(sent_mod_name, NN_PARAM, NN_THRESH))
+    if PLOT:
+        pos = nx.spring_layout(g)
+        # color the nodes according to their partition
+        cmap = cm.get_cmap('viridis', max(partition.values()) + 1)
+        nx.draw_networkx_nodes(g, pos,
+                               partition.keys(), node_size=40,
+                               cmap=cmap, node_color=list(partition.values()))
+        nx.draw_networkx_edges(g, pos, alpha=0.5)
+        plt.show()
+        #gv, labs = filter_local(vecs, md_path)
     # tsne_embeddings(gv, sent_mod_name, labs)
     # load_from_pinecone('gem', True)
